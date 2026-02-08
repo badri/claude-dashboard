@@ -1,0 +1,121 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/seunggabi/claude-dashboard/internal/session"
+	"github.com/seunggabi/claude-dashboard/internal/styles"
+)
+
+// DashboardColumns defines the table column widths.
+var DashboardColumns = []struct {
+	Title string
+	Width int
+}{
+	{"#", 4},
+	{"NAME", 20},
+	{"PROJECT", 18},
+	{"STATUS", 12},
+	{"UPTIME", 10},
+	{"CPU", 8},
+	{"MEM", 8},
+	{"PATH", 0}, // flexible width
+}
+
+// RenderDashboard renders the session table.
+func RenderDashboard(sessions []session.Session, cursor int, width int) string {
+	var b strings.Builder
+
+	// Calculate flexible column width
+	fixedWidth := 0
+	for _, col := range DashboardColumns {
+		fixedWidth += col.Width + 2
+	}
+	pathWidth := width - fixedWidth
+	if pathWidth < 10 {
+		pathWidth = 10
+	}
+
+	// Header
+	header := renderRow(
+		DashboardColumns[0].Title,
+		DashboardColumns[1].Title,
+		DashboardColumns[2].Title,
+		DashboardColumns[3].Title,
+		DashboardColumns[4].Title,
+		DashboardColumns[5].Title,
+		DashboardColumns[6].Title,
+		DashboardColumns[7].Title,
+		pathWidth,
+	)
+	b.WriteString(styles.Header.Render(header))
+	b.WriteString("\n")
+
+	if len(sessions) == 0 {
+		b.WriteString("\n")
+		b.WriteString(styles.Muted.Render("  No sessions found. Press 'n' to create a new session."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// Rows
+	for i, s := range sessions {
+		row := renderRow(
+			fmt.Sprintf("%d", i+1),
+			truncate(s.Name, DashboardColumns[1].Width),
+			truncate(s.Project, DashboardColumns[2].Width),
+			s.StatusString(),
+			s.Uptime(),
+			fmt.Sprintf("%.1f%%", s.CPU),
+			fmt.Sprintf("%.1f%%", s.Memory),
+			truncatePath(s.Path, pathWidth),
+			pathWidth,
+		)
+
+		if i == cursor {
+			b.WriteString(styles.Selected.Width(width).Render(row))
+		} else {
+			switch s.Status {
+			case session.StatusActive:
+				b.WriteString(styles.Active.Render(row))
+			case session.StatusWaiting:
+				b.WriteString(styles.Waiting.Render(row))
+			default:
+				b.WriteString(row)
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func renderRow(idx, name, project, status, uptime, cpu, mem, path string, pathWidth int) string {
+	return fmt.Sprintf("  %-4s%-22s%-20s%-14s%-12s%-10s%-10s%-*s",
+		idx, name, project, status, uptime, cpu, mem, pathWidth, path)
+}
+
+func truncate(s string, maxLen int) string {
+	if lipgloss.Width(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func truncatePath(s string, maxLen int) string {
+	if maxLen <= 0 || lipgloss.Width(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return "..."
+	}
+	if len(s) > maxLen {
+		return "..." + s[len(s)-(maxLen-3):]
+	}
+	return s
+}

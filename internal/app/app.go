@@ -54,8 +54,6 @@ type Model struct {
 	// Filter
 	filterQuery string
 
-	// Attach target (set when user presses enter, handled after quit)
-	attachTarget string
 }
 
 // SessionsMsg carries refreshed session list.
@@ -67,6 +65,11 @@ type SessionsMsg struct {
 // AttachMsg signals to attach to a session.
 type AttachMsg struct {
 	Name string
+}
+
+// AttachFinishedMsg signals tmux attach has completed (user detached).
+type AttachFinishedMsg struct {
+	Err error
 }
 
 // KillMsg signals session was killed.
@@ -179,8 +182,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case AttachMsg:
-		m.attachTarget = msg.Name
-		return m, tea.Quit
+		// Drain stdin before exec to prevent DA1 escape sequence (?6c) from leaking into tmux
+		script := fmt.Sprintf(`while read -t 0.1 -n 1 _ 2>/dev/null; do :; done; exec tmux attach-session -t %s`, msg.Name)
+		c := exec.Command("bash", "-c", script)
+		return m, tea.ExecProcess(c, func(err error) tea.Msg {
+			return AttachFinishedMsg{Err: err}
+		})
+
+	case AttachFinishedMsg:
+		// User detached from tmux, refresh sessions and return to dashboard
+		if msg.Err != nil {
+			m.err = msg.Err
+		}
+		return m, m.refreshSessions
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -546,19 +560,8 @@ func Run() error {
 		tea.WithMouseCellMotion(),
 	)
 
-	finalModel, err := p.Run()
-	if err != nil {
-		return err
-	}
-
-	// Handle attach after program exits
-	if fm, ok := finalModel.(Model); ok {
-		if fm.attachTarget != "" {
-			return ExecAttach(fm.attachTarget)
-		}
-	}
-
-	return nil
+	_, err = p.Run()
+	return err
 }
 
 // ExecAttach replaces the current process with tmux attach.

@@ -1,6 +1,6 @@
 bin/
 dist/
-claude-dashboard
+/claude-dashboard
 *.exe
 *.exe~
 *.dll

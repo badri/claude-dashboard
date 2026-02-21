@@ -3,7 +3,6 @@ package tmux
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -72,19 +71,24 @@ func (c *Client) NewSession(ctx context.Context, name, startDir, command string)
 	if startDir != "" {
 		args = append(args, "-c", startDir)
 	}
-	// Wrap the command in a login shell so the user's full shell environment
-	// (.zshrc, PATH, nvm, etc.) is loaded — identical to opening a new terminal.
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/zsh"
-	}
-	if command != "" {
-		args = append(args, shell, "-l", "-c", command)
-	} else {
-		args = append(args, shell, "-l")
-	}
+	// Do NOT pass the command to new-session — let tmux start its normal
+	// interactive login shell (identical to opening a terminal) so that
+	// .zshrc, PATH, nvm, etc. are fully loaded.
+	// We'll send the command as keystrokes after the shell is ready.
 	cmd := exec.CommandContext(ctx, c.tmuxPath, args...)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	if command != "" {
+		// Brief pause for the shell to finish initialising before we type.
+		time.Sleep(300 * time.Millisecond)
+		sendCtx, sendCancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer sendCancel()
+		sendCmd := exec.CommandContext(sendCtx, c.tmuxPath, "send-keys", "-t", name, command, "Enter")
+		return sendCmd.Run()
+	}
+	return nil
 }
 
 // KillSession kills a tmux session by name.

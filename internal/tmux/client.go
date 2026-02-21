@@ -72,13 +72,16 @@ func (c *Client) NewSession(ctx context.Context, name, startDir, command string)
 	if startDir != "" {
 		args = append(args, "-c", startDir)
 	}
-	// Ensure ~/.local/bin and ~/go/bin are in PATH so hooks (bd, etc.) resolve correctly.
-	// tmux new-session with a bare command runs a non-login shell that skips .zshrc/.bashrc.
-	home, _ := os.UserHomeDir()
-	pathEnv := fmt.Sprintf("PATH=%s/.local/bin:%s/go/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", home, home)
-	args = append(args, "-e", pathEnv)
+	// Wrap the command in a login shell so the user's full shell environment
+	// (.zshrc, PATH, nvm, etc.) is loaded — identical to opening a new terminal.
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
 	if command != "" {
-		args = append(args, command)
+		args = append(args, shell, "-l", "-c", command)
+	} else {
+		args = append(args, shell, "-l")
 	}
 	cmd := exec.CommandContext(ctx, c.tmuxPath, args...)
 	return cmd.Run()

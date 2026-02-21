@@ -9,20 +9,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AgentMailConfig holds mcp_agent_mail integration settings.
+type AgentMailConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Port    int  `yaml:"port"`
+}
+
 // Config holds application configuration.
 type Config struct {
-	RefreshInterval time.Duration `yaml:"refresh_interval"`
-	SessionPrefix   string        `yaml:"session_prefix"`
-	DefaultDir      string        `yaml:"default_dir"`
-	LogHistory      int           `yaml:"log_history"`
+	RefreshInterval time.Duration   `yaml:"refresh_interval"`
+	SessionPrefix   string          `yaml:"session_prefix"`
+	DefaultDir      string          `yaml:"default_dir"`
+	DefaultArgs     string          `yaml:"default_args"`
+	LogHistory      int             `yaml:"log_history"`
+	AgentMail       AgentMailConfig `yaml:"agent_mail"`
 }
 
 // configFile is the YAML representation.
 type configFile struct {
-	RefreshInterval string `yaml:"refresh_interval"`
-	SessionPrefix   string `yaml:"session_prefix"`
-	DefaultDir      string `yaml:"default_dir"`
-	LogHistory      int    `yaml:"log_history"`
+	RefreshInterval string          `yaml:"refresh_interval"`
+	SessionPrefix   string          `yaml:"session_prefix"`
+	DefaultDir      string          `yaml:"default_dir"`
+	DefaultArgs     string          `yaml:"default_args"`
+	LogHistory      int             `yaml:"log_history"`
+	AgentMail       AgentMailConfig `yaml:"agent_mail"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -32,6 +42,10 @@ func DefaultConfig() *Config {
 		SessionPrefix:   "cd-",
 		DefaultDir:      "",
 		LogHistory:      1000,
+		AgentMail: AgentMailConfig{
+			Enabled: false,
+			Port:    8765,
+		},
 	}
 }
 
@@ -74,9 +88,16 @@ func Load() *Config {
 	if cf.DefaultDir != "" {
 		cfg.DefaultDir = cf.DefaultDir
 	}
+	if cf.DefaultArgs != "" {
+		cfg.DefaultArgs = cf.DefaultArgs
+	}
 	if cf.LogHistory > 0 {
 		cfg.LogHistory = cf.LogHistory
 	}
+	if cf.AgentMail.Port != 0 {
+		cfg.AgentMail.Port = cf.AgentMail.Port
+	}
+	cfg.AgentMail.Enabled = cf.AgentMail.Enabled
 
 	return cfg
 }
@@ -92,7 +113,9 @@ func Save(cfg *Config) error {
 		RefreshInterval: cfg.RefreshInterval.String(),
 		SessionPrefix:   cfg.SessionPrefix,
 		DefaultDir:      cfg.DefaultDir,
+		DefaultArgs:     cfg.DefaultArgs,
 		LogHistory:      cfg.LogHistory,
+		AgentMail:       cfg.AgentMail,
 	}
 
 	data, err := yaml.Marshal(&cf)

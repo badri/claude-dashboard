@@ -3,11 +3,32 @@ package session
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/seunggabi/claude-dashboard/internal/conversation"
+	"github.com/seunggabi/claude-dashboard/internal/envsetup"
 	"github.com/seunggabi/claude-dashboard/internal/tmux"
 )
+
+// expandPath expands ~ and environment variables in a path.
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+	path = os.ExpandEnv(path)
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	} else if path == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = home
+		}
+	}
+	return path
+}
 
 // dangerousShellChars lists shell metacharacters that must not appear in claude arguments.
 const dangerousShellChars = "`;|&(){}$<>\n\r"
@@ -22,8 +43,9 @@ func validateClaudeArgs(args string) error {
 
 // Manager handles session CRUD operations.
 type Manager struct {
-	client   *tmux.Client
-	detector *Detector
+	client        *tmux.Client
+	detector      *Detector
+	AgentMailPort int
 }
 
 // NewManager creates a new session manager.
@@ -40,13 +62,26 @@ func (m *Manager) List(ctx context.Context) ([]Session, error) {
 }
 
 // Create creates a new Claude session with optional claude arguments.
-func (m *Manager) Create(ctx context.Context, name, projectDir, claudeArgs string) error {
+// If newEnv is true, a CLAUDE.md is scaffolded in projectDir with agent mail instructions.
+func (m *Manager) Create(ctx context.Context, name, projectDir, claudeArgs string, newEnv bool) error {
 	if claudeArgs != "" {
 		if err := validateClaudeArgs(claudeArgs); err != nil {
 			return err
 		}
 	}
+	projectDir = expandPath(projectDir)
 	sessionName := SessionPrefix + name
+
+	if newEnv && projectDir != "" {
+		port := m.AgentMailPort
+		if port == 0 {
+			port = 8765
+		}
+		if err := envsetup.ScaffoldCLAUDEMd(projectDir, name, projectDir, port); err != nil {
+			return fmt.Errorf("failed to scaffold CLAUDE.md: %w", err)
+		}
+	}
+
 	command := "claude"
 	if claudeArgs != "" {
 		command = "claude " + claudeArgs

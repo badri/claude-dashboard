@@ -12,6 +12,7 @@ import (
 type CreateForm struct {
 	NameInput textinput.Model
 	DirInput  textinput.Model
+	NewEnv    bool
 	FocusIdx  int
 	Err       string
 }
@@ -39,27 +40,37 @@ func NewCreateForm(defaultDir string) CreateForm {
 	}
 }
 
-// FocusNext moves focus to the next input field.
+// FocusNext moves focus to the next input field (cycles: Name → Dir → NewEnv → Name).
 func (f *CreateForm) FocusNext() {
-	if f.FocusIdx == 0 {
+	switch f.FocusIdx {
+	case 0:
 		f.FocusIdx = 1
 		f.NameInput.Blur()
 		f.DirInput.Focus()
-	} else {
-		f.FocusIdx = 0
+	case 1:
+		f.FocusIdx = 2
 		f.DirInput.Blur()
+	default:
+		f.FocusIdx = 0
 		f.NameInput.Focus()
 	}
 }
 
+// ToggleNewEnv flips the NewEnv boolean when that field is focused.
+func (f *CreateForm) ToggleNewEnv() {
+	if f.FocusIdx == 2 {
+		f.NewEnv = !f.NewEnv
+	}
+}
+
 // Values returns the form values.
-func (f *CreateForm) Values() (name, dir string) {
-	return strings.TrimSpace(f.NameInput.Value()), strings.TrimSpace(f.DirInput.Value())
+func (f *CreateForm) Values() (name, dir string, newEnv bool) {
+	return strings.TrimSpace(f.NameInput.Value()), strings.TrimSpace(f.DirInput.Value()), f.NewEnv
 }
 
 // Validate checks if the form values are valid.
 func (f *CreateForm) Validate() error {
-	name, dir := f.Values()
+	name, dir, _ := f.Values()
 	if name == "" {
 		return fmt.Errorf("session name is required")
 	}
@@ -96,6 +107,18 @@ func RenderCreateForm(form CreateForm, width int) string {
 		dirLabel = styles.StatusKey.Render("▸ Directory:")
 	}
 	b.WriteString(fmt.Sprintf("  %s  %s\n", dirLabel, form.DirInput.View()))
+	b.WriteString("\n")
+
+	// New env toggle
+	newEnvLabel := styles.DetailLabel.Render("New env?")
+	if form.FocusIdx == 2 {
+		newEnvLabel = styles.StatusKey.Render("▸ New env?")
+	}
+	newEnvVal := "[ ]"
+	if form.NewEnv {
+		newEnvVal = "[x]"
+	}
+	b.WriteString(fmt.Sprintf("  %s  %s  (space to toggle — scaffolds CLAUDE.md with agent mail)\n", newEnvLabel, newEnvVal))
 	b.WriteString("\n")
 
 	if form.Err != "" {

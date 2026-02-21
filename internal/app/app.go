@@ -105,6 +105,7 @@ func New() (Model, error) {
 
 	cfg := config.Load()
 	mgr := session.NewManager(client)
+	mgr.AgentMailPort = cfg.AgentMail.Port
 
 	filterInput := textinput.New()
 	filterInput.Placeholder = "filter..."
@@ -385,15 +386,18 @@ func (m Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.createForm.Err = err.Error()
 			return m, nil
 		}
-		name, dir := m.createForm.Values()
-		return m, m.createSession(name, dir)
+		name, dir, newEnv := m.createForm.Values()
+		return m, m.createSession(name, dir, newEnv)
+	case " ":
+		m.createForm.ToggleNewEnv()
+		return m, nil
 	}
 
-	// Update the focused input
+	// Update the focused text input (not the toggle field)
 	var cmd tea.Cmd
 	if m.createForm.FocusIdx == 0 {
 		m.createForm.NameInput, cmd = m.createForm.NameInput.Update(msg)
-	} else {
+	} else if m.createForm.FocusIdx == 1 {
 		m.createForm.DirInput, cmd = m.createForm.DirInput.Update(msg)
 	}
 	return m, cmd
@@ -602,9 +606,9 @@ func (m Model) getIdleSessions() []session.Session {
 	return idle
 }
 
-func (m Model) createSession(name, dir string) tea.Cmd {
+func (m Model) createSession(name, dir string, newEnv bool) tea.Cmd {
 	return func() tea.Msg {
-		err := m.manager.Create(context.Background(), name, dir, "")
+		err := m.manager.Create(context.Background(), name, dir, m.cfg.DefaultArgs, newEnv)
 		return CreateMsg{Err: err}
 	}
 }
@@ -730,11 +734,16 @@ func ExecAttach(name string) error {
 }
 
 // CreateSession creates a new Claude session from CLI (non-TUI).
-func CreateSession(name, projectDir, claudeArgs string) error {
+func CreateSession(name, projectDir, claudeArgs string, newEnv bool) error {
 	client, err := tmux.NewClient()
 	if err != nil {
 		return fmt.Errorf("tmux is required: %w", err)
 	}
+	cfg := config.Load()
+	if claudeArgs == "" && cfg.DefaultArgs != "" {
+		claudeArgs = cfg.DefaultArgs
+	}
 	mgr := session.NewManager(client)
-	return mgr.Create(context.Background(), name, projectDir, claudeArgs)
+	mgr.AgentMailPort = cfg.AgentMail.Port
+	return mgr.Create(context.Background(), name, projectDir, claudeArgs, newEnv)
 }

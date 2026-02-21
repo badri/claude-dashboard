@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/seunggabi/claude-dashboard/internal/envsetup"
 )
 
 //go:embed scripts/tmux-mouse-toggle.sh
@@ -232,6 +234,21 @@ func Setup(silent bool, version string) error {
 			if !silent {
 				fmt.Println("✅ Version cache updated")
 			}
+		}
+	}
+
+	if !silent {
+		fmt.Println()
+		fmt.Println("🔧 Configuring agent mail instructions in ~/.claude/CLAUDE.md...")
+	}
+
+	if err := envsetup.AppendAgentMailInstructions(8765); err != nil {
+		if !silent {
+			fmt.Printf("⚠️  Warning: Could not update ~/.claude/CLAUDE.md: %v\n", err)
+		}
+	} else {
+		if !silent {
+			fmt.Println("✅ Agent mail instructions added to ~/.claude/CLAUDE.md")
 		}
 	}
 

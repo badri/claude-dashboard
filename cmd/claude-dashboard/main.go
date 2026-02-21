@@ -58,7 +58,6 @@ func main() {
 			path, _ := os.Getwd()
 			name := ""
 			claudeArgs := ""
-			newEnv := false
 
 			// Parse args: first non-flag arg is name, rest are flags
 			argStart := 2
@@ -79,8 +78,6 @@ func main() {
 						claudeArgs = os.Args[i+1]
 						i++
 					}
-				case "--new-env":
-					newEnv = true
 				}
 			}
 
@@ -101,7 +98,7 @@ func main() {
 			sessionName := "cd-" + name
 
 			// If session already exists, just attach to it
-			if err := app.CreateSession(name, path, claudeArgs, newEnv); err != nil {
+			if err := app.CreateSession(name, path, claudeArgs); err != nil {
 				// Session might already exist - try attaching
 				fmt.Printf("Attaching to existing session '%s'...\n", sessionName)
 			} else {
@@ -150,7 +147,7 @@ Usage:
 New Session Options:
   --path <dir>         Working directory (default: current dir)
   --args <claude-args> Arguments to pass to claude (e.g. "--model opus")
-  --new-env            Scaffold CLAUDE.md with agent mail instructions in the project dir
+
 
 Keybindings:
   enter   Attach to session

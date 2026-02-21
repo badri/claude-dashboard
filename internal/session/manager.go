@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/seunggabi/claude-dashboard/internal/conversation"
-	"github.com/seunggabi/claude-dashboard/internal/envsetup"
 	"github.com/seunggabi/claude-dashboard/internal/tmux"
 )
 
@@ -43,9 +42,8 @@ func validateClaudeArgs(args string) error {
 
 // Manager handles session CRUD operations.
 type Manager struct {
-	client        *tmux.Client
-	detector      *Detector
-	AgentMailPort int
+	client   *tmux.Client
+	detector *Detector
 }
 
 // NewManager creates a new session manager.
@@ -62,8 +60,7 @@ func (m *Manager) List(ctx context.Context) ([]Session, error) {
 }
 
 // Create creates a new Claude session with optional claude arguments.
-// If newEnv is true, a CLAUDE.md is scaffolded in projectDir with agent mail instructions.
-func (m *Manager) Create(ctx context.Context, name, projectDir, claudeArgs string, newEnv bool) error {
+func (m *Manager) Create(ctx context.Context, name, projectDir, claudeArgs string) error {
 	if claudeArgs != "" {
 		if err := validateClaudeArgs(claudeArgs); err != nil {
 			return err
@@ -71,17 +68,6 @@ func (m *Manager) Create(ctx context.Context, name, projectDir, claudeArgs strin
 	}
 	projectDir = expandPath(projectDir)
 	sessionName := SessionPrefix + name
-
-	if newEnv && projectDir != "" {
-		port := m.AgentMailPort
-		if port == 0 {
-			port = 8765
-		}
-		if err := envsetup.ScaffoldCLAUDEMd(projectDir, name, projectDir, port); err != nil {
-			return fmt.Errorf("failed to scaffold CLAUDE.md: %w", err)
-		}
-	}
-
 	command := "claude"
 	if claudeArgs != "" {
 		command = "claude " + claudeArgs
